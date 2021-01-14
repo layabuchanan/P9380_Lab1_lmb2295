@@ -1,0 +1,303 @@
+---
+title: "Lab 1"
+author: "Laya Buchanan"
+date: "1/14/2021"
+output: github_document
+---
+
+Lab goal is to create a county level map of Quality of Life Index Ranking from the Robert Wood Johnson Foundation (obtained from here: https://www.countyhealthrankings.org/)
+
+```{r}
+library(tidyverse)
+library(data.table)
+library(tidycensus)
+library(ggplot2)
+library(RColorBrewer)
+census_api_key("aa512886c5449a582d837da8d3a07af66a043fe5")
+
+census_data = load_variables(2018, "acs5", cache=T)
+fwrite(census_data, "census_variables.csv")
+
+vars = c(tpop = 'P001001',
+          medage = 'P013001',
+          wpop = 'P003002',
+          bpop = 'P003003',
+          apop = 'P003005',
+          hpop = 'P004003')
+
+NY_df = get_decennial(state = "ny", 
+                       geography = "county",
+                       variables = vars,
+                       geometry = T,
+                       output = "wide")
+
+NY_df = 
+  NY_df %>% 
+	  mutate(
+		  wpct = (wpop/tpop) *100,
+		  bpct = (bpop/tpop) *100,
+		  apct = (apop/tpop) *100,
+		  hpct = (hpop/tpop) *100
+	)
+```
+
+Compute Simpson's Diversity Index **D = ((SUM n(n-1))/N(N-1))** Higher value indicates higher diversity
+```{r}
+NY_df = 
+  NY_df %>% 
+  mutate(
+    race_div = 1 - (((wpop*(wpop-1))+(bpop*(bpop-1))+(hpop*(hpop-1))+(apop*(apop-1)))/(tpop*(tpop-1)))
+  )
+
+plot(NY_df["race_div"])
+
+
+rwj = fread("rwj_rank.csv", 
+             stringsAsFactors = F, 
+             data.table = F, 
+             colClasses=list(character=c("FIPS")))
+
+ny_rwj = subset(rwj, State == "New York")
+
+
+ny_rwj_df =
+  merge(NY_df, 
+        ny_rwj,
+        by.x = "GEOID",
+        by.y = "FIPS")
+
+summary(ny_rwj_df)
+summary(ny_rwj_df$QL.Rank)
+
+ny_rwj_df = 
+  ny_rwj_df %>% 
+  mutate(QL.Rank = as.numeric(QL.Rank))
+
+summary(ny_rwj_df$QL.Rank)
+
+
+```
+### Visualize
+
+#####use ggplot to visualize data in map
+
+map1
+```{r}
+map1 = ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill = cut_number(QL.Rank, 5)))
+```
+
+map 2
+```{r}
+map2 =
+  ny_rwj_df %>% 
+  ggplot(aes(fill = QL.Rank)) +
+  geom_sf() +
+  scale_fill_continuous(low = "#34E8EB", high = "#3D34EB") +
+  #scale_fill_continuous(low = "lightgreen", high = "darkgreen") +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(line = element_blank(),                          
+        axis.text=element_blank(),                       
+        axis.title=element_blank(),                      
+        panel.background = element_blank())
+
+summary(ny_rwj_df$QL.Rank)
+ny_rwj_df = 
+ny_rwj_df %>% 
+  mutate(
+    QL.Rank = (QL.Rank - 63) * -1
+  )
+```
+map 3
+```{r}
+map3 =
+  ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill=QL.Rank)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen") +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(hjust = 0.5))  
+```
+
+map 4
+```{r}
+map4 =
+  ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill=QL.Rank)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen") +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(face="bold",size=12,hjust = 0.5)) 
+map4
+```
+
+map 5
+```{r}
+map5 =
+  ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill=QL.Rank)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen") +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(face="bold",size=12,hjust = 0.5),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = c(0.9,0.5)) 
+```
+
+map 6
+```{r}
+map6 = ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill=QL.Rank)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen",
+                        breaks = c(12, 24, 36, 48, 60),
+                        name = "Quality of Life",
+                        labels = c("low",
+                                   "",
+                                   "",
+                                   "",
+                                   "high")) +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(face="bold",size=12,hjust = 0.5),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = c(0.9,0.5)) 
+```
+
+map 7
+```{r}
+map7 = 
+  ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill=QL.Rank)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen",
+                        breaks = c(3, 12, 24, 36, 48, 60),
+                        name = "Quality\nof\nLife",
+                        labels = c("low",
+                                   "",
+                                   "",
+                                   "",
+                                   "",
+                                   "high")) +
+  ggtitle("County Level Quality of Life Rank") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(face="bold",size=12,hjust = 0.5),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = c(0.9,0.5),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 8)) 
+
+names(ny_rwj_df)
+summary(ny_rwj_df$race_div)
+```
+
+map 8
+```{r}
+map8 = 
+  ny_rwj_df %>% 
+  ggplot() +
+  geom_sf(aes(fill = race_div)) +
+  scale_fill_continuous(low = "lightgreen", high = "darkgreen",
+                        breaks = c(0.05, 0.1, 0.16, 0.31, 0.65),
+                        name = "Racial\nDiversity",
+                        labels = c("low",
+                                   "",
+                                   "",
+                                   "",
+                                   "high")) +
+  ggtitle("County Level Racial Diversity") +
+  theme(axis.text=element_text(size=8),                       
+        axis.title=element_text(size=8,face="bold"),
+        plot.title = element_text(face="bold",size=12,hjust = 0.5),
+        axis.ticks = element_blank(),
+        axis.text.y = element_blank(),
+        axis.text.x = element_blank(),
+        legend.position = c(0.9,0.5),
+        legend.title = element_text(size = 8),
+        legend.text = element_text(size = 8))
+```
+
+plot 1
+
+```{r}
+ny_rwj_df %>% 
+  mutate(
+    race_div_bin = ifelse(race_div > mean(race_div),
+                          "High Diversity",
+                          "Low Diversity"),
+    Qual_Life_bin = ifelse(QL.Rank > mean(QL.Rank),
+                           "High Quality of Life",
+                           "Low Quality of Life")
+  )
+
+plot1 = 
+  ny_rwj_df %>% 
+  ggplot(aes(x = race_div_bin, 
+             y = QL.Rank, 
+             group = race_div_bin,
+             color = race_div_bin,
+             fill = race_div_bin)) + 
+  geom_boxplot() + 
+  labs(title="Boxplots", 
+       subtitle= "Quality of Life by Racial Diversity",
+       y="Quality of Life", 
+       x="Racial Diversity") +
+  scale_colour_brewer(palette = "Set3") +
+  theme(legend.position = "none")
+```
+
+plot2
+```{r}
+plot2 = 
+  ny_rwj_df %>% 
+  ggplot(aes(x = Qual_Life_bin,
+             y = race_div,
+             group = Qual_Life_bin,
+             color = Qual_Life_bin,
+             fill = Qual_Life_bin)) + 
+  geom_boxplot() + 
+  labs(title="Boxplots", 
+       subtitle= "Racial Diversity by Quality of Life",
+       y="Racial Diversity", 
+       x="Quality of Life") +
+  scale_colour_brewer(palette = "Set3") +
+  theme(legend.position = "none")
+```
+
+full plot
+```{r}
+library(ggpubr)
+
+full_plot = ggarrange(map7,
+                       map8,
+                       plot1,
+                       plot2,
+                       ncol = 2,
+                       nrow = 2)
+
+ggsave("full_plot.pdf")
+```
+
+
+Please submit the result of the lab script in 
+fulfillment of your assignment 1 requirement
+
+
+
+
+
